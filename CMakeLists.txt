@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.0)
+project(icub_airhockey_control)
+find_package(BipedalLocomotionFramework COMPONENTS IK REQUIRED)
+add_executable(icub_airhockey_control main.cpp)
+target_link_libraries(icub_airhockey_control PRIVATE BipedalLocomotion::IK)
