@@ -11,6 +11,7 @@
 #include <yarp/dev/IPositionDirect.h>
 #include <yarp/dev/IPositionControl.h>
 #include <yarp/dev/CartesianControl.h>
+#include <yarp/dev/IEncoders.h>
 #include <yarp/dev/IControlMode.h>
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/sig/Matrix.h>
@@ -53,6 +54,7 @@ int main(int argc, char const *argv[])
     yarp::dev::IPositionControl* torso_ipos;
     yarp::dev::IPositionDirect* torso_iposd;
     yarp::dev::IControlMode* torso_imod;
+    yarp::dev::IEncoders* torso_enc;
     yarp::dev::PolyDriver torso_driver;
     yarp::os::Property torso_options;
     torso_options.put("device", "remote_controlboard");
@@ -62,11 +64,13 @@ int main(int argc, char const *argv[])
     torso_driver.view(torso_ipos);
     torso_driver.view(torso_iposd);
     torso_driver.view(torso_imod);
+    torso_driver.view(torso_enc);
 
     yarp::dev::IPositionControl* right_arm_ipos;
     yarp::dev::IPositionDirect* right_arm_iposd;
     yarp::dev::IControlMode* right_arm_imod;
     yarp::dev::PolyDriver right_arm_driver;
+    yarp::dev::IEncoders* right_arm_enc;
     yarp::os::Property right_arm_options;
     right_arm_options.put("device", "remote_controlboard");
     right_arm_options.put("remote", "/icubSim/right_arm");
@@ -75,17 +79,7 @@ int main(int argc, char const *argv[])
     right_arm_driver.view(right_arm_ipos);
     right_arm_driver.view(right_arm_iposd);
     right_arm_driver.view(right_arm_imod);
-
-    // yarp::dev::ICartesianControl* icart;
-    // yarp::dev::PolyDriver cart_driver;
-
-    // yarp::os::Property options_cart;
-    // options_cart.put("device", "cartesiancontrollerclient");
-    // options_cart.put("remote", "/icubSim/cartesianController/right_ee");
-    // options_cart.put("local", "/icub_airhockey_control/right_ee");
-    // cart_driver.open(options_cart);
-    // cart_driver.view(icart);
-
+    right_arm_driver.view(right_arm_enc);
 
     int torso_naxes;
     torso_ipos->getAxes(&torso_naxes);
@@ -94,6 +88,11 @@ int main(int argc, char const *argv[])
 
     int right_arm_naxes;
     right_arm_ipos->getAxes(&right_arm_naxes);
+
+    std::vector<double>right_arm_encoder_values(right_arm_naxes);
+    right_arm_enc->getEncoders(right_arm_encoder_values.data());
+    std::vector<double>torso_encoder_values(torso_naxes);
+    torso_enc->getEncoders(torso_encoder_values.data());
 
     std::vector<int> right_arm_modes(right_arm_naxes, VOCAB_CM_POSITION);
     right_arm_imod->setControlModes(right_arm_modes.data()); 
@@ -132,6 +131,8 @@ int main(int argc, char const *argv[])
     
     std::fill(begin(torso_modes), end(torso_modes), VOCAB_CM_POSITION_DIRECT);
     torso_imod->setControlModes(torso_modes.data());
+
+
 
     for (int i = 0; i < 1000; ++i)
     {
