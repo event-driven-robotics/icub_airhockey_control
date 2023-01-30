@@ -2,6 +2,7 @@
 #include <iDynTree/KinDynComputations.h>
 #include <BipedalLocomotion/IK/QPInverseKinematics.h>
 #include <BipedalLocomotion/IK/SE3Task.h>
+#include <BipedalLocomotion/IK/JointTrackingTask.h>
 #include <BipedalLocomotion/ContinuousDynamicalSystem/ForwardEuler.h>
 #include <BipedalLocomotion/ContinuousDynamicalSystem/FloatingBaseSystemKinematics.h>
 #include <BipedalLocomotion/ParametersHandler/YarpImplementation.h>
@@ -97,12 +98,14 @@ int main(int argc, char const *argv[])
     Eigen::Vector3d base_position{0, 0, 0};
     manif::SO3d base_orientation = manif::SO3d::Identity();
     Eigen::VectorXd initial_joint_config(10);
-    double integration_step = 0.01;
+    double integration_step = 0.001;
 
     initial_joint_config << torso_encoder_values[0], torso_encoder_values[1], torso_encoder_values[2], // Torso roll, pitch, yaw
                             right_arm_encoder_values[0], right_arm_encoder_values[1], right_arm_encoder_values[2], // Shoulder roll, pitch, yaw
                             right_arm_encoder_values[3], // elbow
                             right_arm_encoder_values[4], right_arm_encoder_values[5], right_arm_encoder_values[6]; // Wrist roll, pitch, yaw
+
+    initial_joint_config *= (M_PI / 180);
 
     cout << initial_joint_config << endl;
 
@@ -132,7 +135,13 @@ int main(int argc, char const *argv[])
     ee_task->initialize(params_handler->getGroup("EE_TASK"));
     QPIK.initialize(params_handler->getGroup("IK"));
 
+    auto joint_regularization_task = make_shared<BipedalLocomotion::IK::JointTrackingTask>();
+    
+    joint_regularization_task->setKinDyn(kinDyn);
+    joint_regularization_task->initialize(params_handler->getGroup("JOINT_REGULARIZATION_TASK"));
+
     QPIK.addTask(ee_task, "ee_task", 0);
+    QPIK.addTask(joint_regularization_task, "joint_regularization_task", 1, Eigen::VectorXd::Ones(10));
 
     QPIK.finalize(variables_handler);
 
@@ -140,43 +149,53 @@ int main(int argc, char const *argv[])
     
     for (int i = 0; i < 1000; ++i)
     {
-        trajectory_positions.push_back(Eigen::Vector3d{-0.3, 0.2 * sin(M_2_PI * i / 1000), -0.1});
+        trajectory_positions.push_back(Eigen::Vector3d{-0.3, 0.2 * cos(M_2_PI * i / 1000), 0.0});
     }
 
     bool wp_reached = true;
     auto traj_iter = trajectory_positions.begin();
     
     std::vector<int> joint_ids({0, 1, 2, 3, 4, 5, 6});
+    Eigen::VectorXd joint_measured_pos(10);
 
     while (true)    
     {
         if (wp_reached){
             wp_reached = false;
             traj_iter ++;
+            Eigen::Vector3d T = *traj_iter;
+            manif::SO3d O = manif::SO3d(0, M_PI, 0);
+            ee_task->setSetPoint(manif::SE3d(T, O));
+            cout << O.transform();
+
         }
 
-        auto T = *traj_iter;
-        ee_task->setSetPoint(manif::SE3d(T, manif::SO3d::Identity()));
-        QPIK.advance();
 
-          
+        while (!(right_arm_enc->getEncoders(right_arm_encoder_values.data()))) continue;
+        while (!(torso_enc->getEncoders(torso_encoder_values.data()))) continue;
+        joint_measured_pos << torso_encoder_values[0], torso_encoder_values[1], torso_encoder_values[2], // Torso roll, pitch, yaw
+                            right_arm_encoder_values[0], right_arm_encoder_values[1], right_arm_encoder_values[2], // Shoulder roll, pitch, yaw
+                            right_arm_encoder_values[3], // elbow
+                            right_arm_encoder_values[4], right_arm_encoder_values[5], right_arm_encoder_values[6];
+        joint_measured_pos *= (M_PI / 180);
+        kinDyn->setJointPos(joint_measured_pos);
+
+        QPIK.advance();
+        
+        // cout << QPIK.getOutput().jointVelocity.transpose() << endl;
         system->setControlInput({{0, 0, 0, 0, 0, 0}, QPIK.getOutput().jointVelocity});
+
         integrator.integrate(0, integration_step);
         const auto &[base_position, base_orientation, joint_position] = integrator.getSolution();
 
-        torso_iposd->setPositions(joint_position.head(3).data());
-        auto right_arm_pos = initial_joint_config.tail(7);
-        cout << right_arm_pos;
+        Eigen::VectorXd torso_command = joint_position.head(3);
+        torso_command *= (180 / M_PI);
+        torso_iposd->setPositions(torso_command.data());
+        Eigen::VectorXd right_arm_pos = joint_position.tail(7);
+        right_arm_pos *= (180 / M_PI);
         right_arm_iposd->setPositions(right_arm_pos.size(), joint_ids.data(), right_arm_pos.data());
-        while (!(right_arm_enc->getEncoders(right_arm_encoder_values.data()))) continue;
-        while (!(torso_enc->getEncoders(torso_encoder_values.data()))) continue;
-
-        joint_position({torso_encoder_values[0], torso_encoder_values[1], torso_encoder_values[2], // Torso roll, pitch, yaw
-                            right_arm_encoder_values[0], right_arm_encoder_values[1], right_arm_encoder_values[2], // Shoulder roll, pitch, yaw
-                            right_arm_encoder_values[3], // elbow
-                            right_arm_encoder_values[4], right_arm_encoder_values[5], right_arm_encoder_values[6]}); // Wrist roll, pitch, yaw
-        kinDyn->setJointPos(joint_position);
-
+        
+        // cout << kinDyn->getWorldTransform("r_hand_dh_frame").asHomogeneousTransform().toString() << endl;        
     }
 
     return 0;
