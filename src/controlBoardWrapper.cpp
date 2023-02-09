@@ -36,7 +36,7 @@ void ControlBoard::setPartControlMode(int mode)
 }
 
 std::vector<double> ControlBoard::getEncoderValues(){
-    for (int i=0; i<100; i++){
+    for (int i=0; i<1000; i++){
         if (this->enc->getEncoders(enc_values.data()))
             return enc_values;
     }

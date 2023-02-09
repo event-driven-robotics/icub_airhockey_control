@@ -20,6 +20,7 @@ class ControlBoard{
         std::vector<double> enc_values;
 
     public:
+        ControlBoard(){};
         ControlBoard(std::string robot_part_name, std::string robot_name="icub");
         void setPartControlMode(int mode);
         std::vector < double > getEncoderValues();
