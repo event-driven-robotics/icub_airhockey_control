@@ -26,4 +26,7 @@ class ControlBoard{
         std::vector < double > getEncoderValues();
         void positionDirectMove(const double* command, std::vector<int> controlled_joints_ids);
         void positionDirectMove(const double * command);
+        void positionMove(const double* command, std::vector<int> controlled_joints_ids);
+        void positionMove(const double * command);
+        void close();
 };

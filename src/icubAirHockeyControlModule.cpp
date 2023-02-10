@@ -1,4 +1,5 @@
 #include "icubAirHockeyControlModule.h"
+#include <iomanip>
 
 using namespace std;
 
@@ -13,8 +14,8 @@ IcubAirHockeyControlModule::IcubAirHockeyControlModule()
 
     joint_measured_pos = Eigen::VectorXd::Zero(joint_names.size());
 
-    torso_cb = new ControlBoard("torso", "icubSim");
-    right_arm_cb = new ControlBoard("right_arm", "icubSim");
+    torso_cb = new ControlBoard("torso", "icub");
+    right_arm_cb = new ControlBoard("right_arm", "icub");
 
     ee_task = make_shared<BipedalLocomotion::IK::SE3Task>();
     base_task = make_shared<BipedalLocomotion::IK::SE3Task>();
@@ -23,7 +24,7 @@ IcubAirHockeyControlModule::IcubAirHockeyControlModule()
     kinDyn = make_shared<iDynTree::KinDynComputations>();
     system = make_shared<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics>();
     params_handler = make_shared<BipedalLocomotion::ParametersHandler::YarpImplementation>();
-    integration_step = 0.01;
+    integration_step = 0.001;
 }
 
 bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
@@ -37,6 +38,17 @@ bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
     {
         throw runtime_error("Something went wrong with model loading for kinematics/dynamics computation");
     }
+
+
+    torso_cb->setPartControlMode(VOCAB_CM_POSITION);
+    right_arm_cb->setPartControlMode(VOCAB_CM_POSITION);
+
+    std::vector<double> starting_torso_pos{0, 0, 0};
+    std::vector<double> starting_right_arm_pos{-36, 30, 0, 50, 0, 3, 7, 27, 27, 0, 82, 3, 0, 0, 0, 0};
+
+    torso_cb->positionMove(starting_torso_pos.data());
+    right_arm_cb->positionMove(starting_right_arm_pos.data());
+
 
     std::vector<double> torso_encoder_values = torso_cb->getEncoderValues();
     std::vector<double> right_arm_encoder_values = right_arm_cb->getEncoderValues();
@@ -86,14 +98,17 @@ bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
     velocity = manif::SE3Tangentd::Zero();
 
     base_task->setSetPoint(manif::SE3d::Identity());
+    
     return true;
 }
 
 bool IcubAirHockeyControlModule::updateModule()
 {
-    manif_pose.translation(manif_initial_pose.translation() + Eigen::Vector3d{0, 0.1 * sin(M_PI * i * integration_step), 0});
+    double amplitude = 0.05;
+    double f = 1;
+    manif_pose.translation(manif_initial_pose.translation() + Eigen::Vector3d{0, amplitude * sin(f * M_PI * i * integration_step), 0});
 
-    velocity.lin()(1) = 0.1 * M_PI * cos(M_PI * i * integration_step);
+    velocity.lin()(1) = amplitude * f * M_PI * cos(M_PI * i * integration_step);
     ee_task->setSetPoint(manif_pose, velocity);
 
     torso_encoder_values = torso_cb->getEncoderValues();
@@ -125,6 +140,15 @@ bool IcubAirHockeyControlModule::updateModule()
     
     i++;
     
+    std::cout << std::fixed << std::setprecision(5) <<yarp::os::Time::now() - now << std::endl;
+    now = yarp::os::Time::now();
+    return true;
+}
+
+bool IcubAirHockeyControlModule::close()
+{
+    this->torso_cb->close();
+    this->right_arm_cb->close();
     return true;
 }
 

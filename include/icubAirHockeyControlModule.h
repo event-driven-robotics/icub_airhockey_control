@@ -60,5 +60,6 @@ public:
     IcubAirHockeyControlModule();
     bool configure(yarp::os::ResourceFinder &rf) override;
     bool updateModule() override;
+    bool close() override;
     double getPeriod() override;
 };
