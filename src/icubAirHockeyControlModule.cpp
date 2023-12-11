@@ -24,7 +24,7 @@ IcubAirHockeyControlModule::IcubAirHockeyControlModule()
     kinDyn = make_shared<iDynTree::KinDynComputations>();
     system = make_shared<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics>();
     params_handler = make_shared<BipedalLocomotion::ParametersHandler::YarpImplementation>();
-    integration_step = 0.001;
+    integration_step = 1000;
 }
 
 bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
@@ -69,7 +69,7 @@ bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
     system->setState(state);
 
     integrator.setDynamicalSystem(system);
-    integrator.setIntegrationStep(integration_step);
+    integrator.setIntegrationStep(std::chrono::nanoseconds(integration_step));
     params_handler->setFromFile("../ik.ini");
 
     variables_handler.initialize(params_handler->getGroup("VARIABLES"));
@@ -124,10 +124,10 @@ bool IcubAirHockeyControlModule::updateModule()
     kinDyn->setJointPos(joint_measured_pos);
 
     QPIK.advance();
+    
+    // system->setControlInput({{0, 0, 0, 0, 0, 0}, QPIK.getOutput().jointVelocity}); TODO uncomment and make it work
 
-    system->setControlInput({{0, 0, 0, 0, 0, 0}, QPIK.getOutput().jointVelocity});
-
-    integrator.integrate(0, integration_step);
+    integrator.integrate(std::chrono::nanoseconds(0), std::chrono::nanoseconds(integration_step));
     const auto &[base_position, base_orientation, joint_command_pos] = integrator.getSolution();
 
     torso_command = joint_command_pos.head(3);

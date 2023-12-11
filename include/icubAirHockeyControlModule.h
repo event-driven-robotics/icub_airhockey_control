@@ -38,7 +38,7 @@ private:
     ControlBoard* torso_cb;
     ControlBoard* right_arm_cb;
 
-    double integration_step;
+    int integration_step;
     BipedalLocomotion::ContinuousDynamicalSystem::ForwardEuler<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics> integrator;
     std::shared_ptr<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics> system;
     std::shared_ptr<BipedalLocomotion::ParametersHandler::YarpImplementation> params_handler;
