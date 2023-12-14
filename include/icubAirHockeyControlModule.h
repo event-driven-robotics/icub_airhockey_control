@@ -38,7 +38,7 @@ private:
     ControlBoard* torso_cb;
     ControlBoard* right_arm_cb;
 
-    int integration_step;
+    double integration_step{0.001};
     BipedalLocomotion::ContinuousDynamicalSystem::ForwardEuler<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics> integrator;
     std::shared_ptr<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics> system;
     std::shared_ptr<BipedalLocomotion::ParametersHandler::YarpImplementation> params_handler;
@@ -49,6 +49,8 @@ private:
     std::shared_ptr<BipedalLocomotion::IK::SE3Task> base_task;
     std::shared_ptr<BipedalLocomotion::IK::JointTrackingTask> joint_regularization_task;
 
+    BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics::Input controlInput;
+    
     manif::SE3d manif_initial_pose;
     manif::SE3d manif_pose;
     manif::SE3Tangentd velocity;

@@ -2,7 +2,8 @@
 #include <iomanip>
 
 using namespace std;
-
+using namespace BipedalLocomotion::GenericContainer::literals;
+    
 IcubAirHockeyControlModule::IcubAirHockeyControlModule()
 {
     joint_names = vector<string>{"torso_yaw", "torso_roll", "torso_pitch", "r_shoulder_pitch", "r_shoulder_roll", "r_shoulder_yaw",
@@ -14,8 +15,8 @@ IcubAirHockeyControlModule::IcubAirHockeyControlModule()
 
     joint_measured_pos = Eigen::VectorXd::Zero(joint_names.size());
 
-    torso_cb = new ControlBoard("torso", "icub");
-    right_arm_cb = new ControlBoard("right_arm", "icub");
+    torso_cb = new ControlBoard("torso", "icubSim");
+    right_arm_cb = new ControlBoard("right_arm", "icubSim");
 
     ee_task = make_shared<BipedalLocomotion::IK::SE3Task>();
     base_task = make_shared<BipedalLocomotion::IK::SE3Task>();
@@ -24,7 +25,7 @@ IcubAirHockeyControlModule::IcubAirHockeyControlModule()
     kinDyn = make_shared<iDynTree::KinDynComputations>();
     system = make_shared<BipedalLocomotion::ContinuousDynamicalSystem::FloatingBaseSystemKinematics>();
     params_handler = make_shared<BipedalLocomotion::ParametersHandler::YarpImplementation>();
-    integration_step = 1000;
+    integration_step = 0.01;
 }
 
 bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
@@ -69,7 +70,7 @@ bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
     system->setState(state);
 
     integrator.setDynamicalSystem(system);
-    integrator.setIntegrationStep(std::chrono::nanoseconds(integration_step));
+    integrator.setIntegrationStep(std::chrono::nanoseconds((int)(integration_step * 1e6)));
     params_handler->setFromFile("../ik.ini");
 
     variables_handler.initialize(params_handler->getGroup("VARIABLES"));
@@ -104,7 +105,7 @@ bool IcubAirHockeyControlModule::configure(yarp::os::ResourceFinder &rf)
 
 bool IcubAirHockeyControlModule::updateModule()
 {
-    double amplitude = 0.05;
+    double amplitude = 50;
     double f = 1;
     manif_pose.translation(manif_initial_pose.translation() + Eigen::Vector3d{0, amplitude * sin(f * M_PI * i * integration_step), 0});
 
@@ -125,9 +126,12 @@ bool IcubAirHockeyControlModule::updateModule()
 
     QPIK.advance();
     
-    // system->setControlInput({{0, 0, 0, 0, 0, 0}, QPIK.getOutput().jointVelocity}); TODO uncomment and make it work
+    controlInput.get_from_hash<"twist"_h>() = Eigen::Matrix<double, 6, 1>({0, 0, 0, 0, 0, 0});
+    controlInput.get_from_hash<"ds"_h>() = QPIK.getOutput().jointVelocity;
 
-    integrator.integrate(std::chrono::nanoseconds(0), std::chrono::nanoseconds(integration_step));
+    system->setControlInput(controlInput);
+
+    integrator.integrate(std::chrono::nanoseconds(0), std::chrono::nanoseconds((int)(integration_step*1e6)));
     const auto &[base_position, base_orientation, joint_command_pos] = integrator.getSolution();
 
     torso_command = joint_command_pos.head(3);
